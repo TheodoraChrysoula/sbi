@@ -1,0 +1,12 @@
+site_name: SBI
+# 
+site_description: SBI Algorithms
+#
+site_author: Theodora Chrysoula
+#
+
+# Define the navigation structure for the documentaiton site
+nav:
+- Home: index.md
+- ABC Pseudocode: abc_pseudocode.md
+- ABC PDF: abc_pseudocode.pdf
