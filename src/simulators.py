@@ -19,3 +19,8 @@ def simulator2(theta, x):
     sim = np.random.normal(mean, np.sqrt(var))
     return sim
 
+def simulator_omc(theta, x, u):
+    # Compute the mean of the normal distribution
+    mean = np.dot(theta, x)
+    return mean + u
+
