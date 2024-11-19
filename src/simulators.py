@@ -12,11 +12,11 @@ def simulator(theta, x):
 
 def simulator2(theta, x):
     # Compute the mean of the normal distribution
-    mean = np.dot(theta, x)
+    means = np.dot(theta, x)
     # Assume fixed variance
     var = 0.01
     # Generate samples from the normal distributioin with mean and variance
-    sim = np.random.normal(mean, np.sqrt(var))
+    sim = np.random.normal(means, np.sqrt(var))
     return sim
 
 def simulator_omc(theta, x, u):
