@@ -1,4 +1,7 @@
 import numpy as np
+import jax
+import jax.numpy as jnp
+from jax import random
 #from simulators import simulator, simulator2
 
 def abc_inference(y, x, theta, eps, simulator_func):
@@ -111,6 +114,43 @@ def abc_method2(N, eps, simulator_func, prior, dim, x, obs, batch_size=100):
         raise ValueError(f"Only {len(samples_pos)} accepted samples")
 
     return np.array(samples_pos)
+
+def abc_jax(N, Nsamples, simulator_func, prior, dim, x, obs, key):
+    """
+    Perfom Approximate Bayesian Computation 
+    Parameters:
+    - N: int, the number of accepted samples,
+    - Nsamples: int, the number of generated samples,
+    - simulation_func: function, generates simulated data given parameters,
+    - prior: callable: generates samples from the prior,
+    - dim: int, dimensions of the parameter space,
+    - x: ndarray, fixed variable,
+    - obs: array, the true observed data for comparison
+    - key: intialize key for random generation
+    
+    Returns:
+    - samples_pos: array, best N accepted samples
+    """
+
+    # Split the keys into Nsamples subkeys
+    keys = random.split(key, Nsamples)
+
+    # Generate Nsamples samples from the prior
+    thetas = jax.vmap(lambda k: prior(1, dim, k).squeeze())(keys)
+
+    # Simulated data for each sampled theta
+    sim_data = jax.vmap(lambda theta, k: simulator_func(theta, x, k))(thetas, keys)
+
+    # Calculate the distances
+    distances = jnp.abs(obs-sim_data)
+
+    # Get the indices of the smallest distances
+    best_indices = jnp.argsort(distances)[:N]
+
+    # Select the corresponding best thetas on sorted indices
+    samples_pos = thetas[best_indices]
+
+    return samples_pos
 
 
 
