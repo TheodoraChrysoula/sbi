@@ -85,7 +85,7 @@ def abc_method2(N, eps, simulator_func, prior, dim, x, obs, batch_size=100):
     while len(samples_pos) < batch_size and step < N:
 
         # Generate a batch of candidate samples
-        thetas=prior(N, dim)
+        thetas=prior(batch_size, dim)
 
         # Simulated data for all parameters in the batch
         sim_data = simulator_func(thetas, x) # Shape: (batch_size,)
@@ -110,7 +110,7 @@ def abc_method2(N, eps, simulator_func, prior, dim, x, obs, batch_size=100):
         # Increment the step count
         step += batch_size
 
-    if len(samples_pos)<=batch_size:
+    if len(samples_pos)<batch_size:
         raise ValueError(f"Only {len(samples_pos)} accepted samples")
 
     return np.array(samples_pos)
