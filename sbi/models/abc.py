@@ -4,6 +4,18 @@ import jax.numpy as jnp
 from jax import random
 #from simulators import simulator, simulator2
 
+
+# class ABCInference:
+#     def __init__(self, arg):
+#         pass
+#
+#     def infer_numpy(self, N, N1, eps=None):
+#         pass
+#
+#     def infer_jax(self):
+#         pass
+
+
 def abc_inference(y, x, theta, eps, simulator_func):
     '''
     Perform Approximate Bayesian Computation (ABC) inference.
@@ -26,7 +38,7 @@ def abc_inference(y, x, theta, eps, simulator_func):
             accepted_samples.append(theta[i,:])
     return np.array(accepted_samples)
 
-def abc_method1(N, Nsamples, simulator_func, prior, dim, x, obs):
+def abc_method1(N, Nsamples, simulator_func, prior, x, obs):
     """
     Perfom Approximate Bayesian Computation 
     Parameters:
@@ -43,7 +55,8 @@ def abc_method1(N, Nsamples, simulator_func, prior, dim, x, obs):
     """
 
     # Generate samples from the prior
-    thetas = prior(Nsamples, dim)
+    thetas = prior(Nsamples)
+
 
     # Simulate data for all thetas
     sim = simulator_func(thetas, x)
@@ -117,7 +130,8 @@ def abc_method2(N, eps, simulator_func, prior, dim, x, obs, batch_size=100):
 
 def abc_jax(N, Nsamples, simulator_func, prior, dim, x, obs, key):
     """
-    Perfom Approximate Bayesian Computation 
+    Perfom Approximate Bayesian Computation
+
     Parameters:
     - N: int, the number of accepted samples,
     - Nsamples: int, the number of generated samples,
