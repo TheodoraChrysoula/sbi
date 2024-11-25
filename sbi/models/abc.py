@@ -5,167 +5,195 @@ from jax import random
 #from simulators import simulator, simulator2
 
 
-# class ABCInference:
-#     def __init__(self, arg):
-#         pass
-#
-#     def infer_numpy(self, N, N1, eps=None):
-#         pass
-#
-#     def infer_jax(self):
-#         pass
+class ABCInference:
+    def __init__(self, x, obs, eps=None):
+        '''
+        Initialize the ABCInference with observed data and fixed variable
+        
+        Parameters:
+        - x: ndarray, fixed variable for simulation
+        - obs: ndarray, observed data for comparison
+        - eps: float, optional tolerance threshold for Method 2
+        '''
 
+        self.x = x
+        self.obs = obs
+        self.eps = eps
 
-def abc_inference(y, x, theta, eps, simulator_func):
-    '''
-    Perform Approximate Bayesian Computation (ABC) inference.
+    def infer(self, target_samples, Nsamples, prior, simulator_func, batch_size=None, key=None):
+        '''
+        Choose Method 1 or Method 2 based on the presence of eps.
+        
+        Parameters:
+        - target_samples: int, number of accepted samples to collect,
+        - Nsamples: int, number of samples to generate in total,
+        - prior: callable, generates samples from the prior
+        - simulator_func: function, generates simulated data,
+        - batch_size: int, number of samples per batch (Method 2),
+        - key: PRNGKey (only for JAX)
+        
+        Returns:
+        samples_pos: ndarray, accepted_samples
+        '''
+
+        if self.eps is None:
+            # Use method 1 if eps is None 
+            return self.infer_method1(target_samples, Nsamples, prior, simulator_func, key)
+        else:
+            # Use method 2
+            if batch_size is None:
+                raise ValueError(":Method 2 requires batch_size paramater.")
+            return self.infer_method2(target_samples, Nsamples, batch_size, self.eps, prior, simulator_func, key)
+        
+    # Method 1 - Numpy Implementation 
+    def infer_method1_numpy(self, target_samples, Nsamples, prior, simulator_func):
+        '''
+        Approximate Bayesian Computation Method 1 using Numpy 
+
+        Returns:
+        samples_pos: ndarray, best target_samples accepted sampels
+        '''
+
+        # Generate Nsamples thetas
+        thetas = prior(Nsamples)
+
+        # Generate Nsamples simulated data
+        sim_data = simulator_func(thetas, self.x)
+
+        # Compute distances
+        distances = np.abs(self.obs-sim_data)
+        
+        # Select the target_samples smallest distances
+        best_indices = np.argsort(distances)[:target_samples]
+        
+        # Select the top target_samples samples
+        samples_pos = thetas[best_indices]
+        return samples_pos
     
-    Parameters:
-    y (float): The observed value.
-    x (ndarray): The input data
-    theta (ndarray): Samples from the prior distribution.
-    e (float): The acceptance threshold
-    
-    Retunrs:
-    ndarray: Accepted samples that approximate the posterior distribution.
-    '''
+    # Method 1 - JAX implementation
+    def infer_method1_jax(self, target_samples, Nsamples, prior, simulator_func, key):
+        '''
+        Approximate Bayesian Computation Method 1 using JAX implementation
+        
+        Returns:
+        samples_pos: ndarray, best target_samples accepted samples
+        '''
+        # Generate Nsamples keys
+        keys = random.split(key, Nsamples)
 
-    accepted_samples = []
-    for i in range(len(theta)):
-        sim = simulator_func(theta[i, :], x)
-        dis = np.linalg.norm(sim-y)
-        if dis < eps:
-            accepted_samples.append(theta[i,:])
-    return np.array(accepted_samples)
+        # Generate Nsamples thetas
+        thetas = prior(Nsamples, keys)
 
-def abc_method1(N, Nsamples, simulator_func, prior, x, obs):
-    """
-    Perfom Approximate Bayesian Computation 
-    Parameters:
-    - N: int, the number of accepted samples,
-    - Nsamples: int, the number of generated samples,
-    - simulation_func: function, generates simulated data given parameters,
-    - prior: callable: generates samples from the prior,
-    - dim: int, dimensions of the parameter space,
-    - x: ndarray, fixed variable,
-    - obs: array, the true observed data for comparison
-    
-    Returns:
-    - samples_pos: array, best N accepted samples
-    """
-
-    # Generate samples from the prior
-    thetas = prior(Nsamples)
-
-
-    # Simulate data for all thetas
-    sim = simulator_func(thetas, x)
-
-    # Compute the distances between obs and sim_data
-    distances = np.abs(obs-sim)
-
-    # Find the indices of N smallest distances
-    best_indices = np.argsort(distances)[:N]
-
-    # Select the top N thetas
-    samples_pos = thetas[best_indices]
-
-    return samples_pos
-
-def abc_method2(N, eps, simulator_func, prior, dim, x, obs, batch_size=100):
-    """
-    Approximate Bayesian Computation with batch processing and early stopping
-    
-    Parameters:
-    - N: int, total number of samples to generate from the prior
-    - eps: float,tolerance threshold for the distance metric,
-    - simulator_func: function, generates simulated data given the parameters,
-    - prior: callable, generates samples from the prior distribution,
-    - dim: int, dimensions of the parameter space,
-    - x: array, fixed variable,
-    - obs: array, the true observed data for comparison,
-    - batch_size: int , the number of samples to process in each batch
-    
-    Returns:
-    - samples_pos: array, first 100 accepted samples (posterior distribution)
-    """
-
-    samples_pos = []
-
-    # Initialize step
-    step=0
-
-    while len(samples_pos) < batch_size and step < N:
-
-        # Generate a batch of candidate samples
-        thetas=prior(batch_size, dim)
-
-        # Simulated data for all parameters in the batch
-        sim_data = simulator_func(thetas, x) # Shape: (batch_size,)
+        # Generated Nsamples sim_data
+        sim_data = simulator_func(thetas, self.x, keys)
 
         # Compute the distances
-        distances = np.abs(obs-sim_data) # Shape: (batch_size, )
+        distances = jnp.abs(self.obs - sim_data)
 
-        # Identify indices of accepted samples
-        accepted_indices = np.where(distances < eps)[0]
-
-        # Extact accepted samples
-        accepted_samples = thetas[accepted_indices]
-
-        # Add accepted samples to samples_pos
-        samples_pos.extend(accepted_samples)
+        # Select the target_samples smallest distances
+        best_indices = jnp.argsort(distances)[:target_samples]
         
-        # Stop if we have collected enough samples
-        if len(samples_pos) >= batch_size:
-            samples_pos[:batch_size]
-            break
-
-        # Increment the step count
-        step += batch_size
-
-    if len(samples_pos)<batch_size:
-        raise ValueError(f"Only {len(samples_pos)} accepted samples")
-
-    return np.array(samples_pos)
-
-def abc_jax(N, Nsamples, simulator_func, prior, dim, x, obs, key):
-    """
-    Perfom Approximate Bayesian Computation
-
-    Parameters:
-    - N: int, the number of accepted samples,
-    - Nsamples: int, the number of generated samples,
-    - simulation_func: function, generates simulated data given parameters,
-    - prior: callable: generates samples from the prior,
-    - dim: int, dimensions of the parameter space,
-    - x: ndarray, fixed variable,
-    - obs: array, the true observed data for comparison
-    - key: intialize key for random generation
+        # Select the top target_samples samples
+        samples_pos = thetas[best_indices]
+        return samples_pos
     
-    Returns:
-    - samples_pos: array, best N accepted samples
-    """
+    # Method 2 - Numpy Implementation 
+    def infer_method2_numpy(self, target_samples, Nsamples, batch_size, prior, simulator_func):
+        '''
+        Approximate Bayesian Computation Method 2
+        
+        Returns:
+        samples_pos: ndarray, accepted samples
+        '''
+        samples_pos = []
+        step=0
 
-    # Split the keys into Nsamples subkeys
-    keys = random.split(key, Nsamples)
+        while len(samples_pos) < target_samples and step < Nsamples:
 
-    # Generate Nsamples samples from the prior
-    thetas = jax.vmap(lambda k: prior(1, dim, k).squeeze())(keys)
+            # Generate a batch of candidate samples
+            thetas = prior(batch_size)
 
-    # Simulated data for each sampled theta
-    sim_data = jax.vmap(lambda theta, k: simulator_func(theta, x, k))(thetas, keys)
+            # Simulated data for all parameters in the batch
+            sim_data = simulator_func(thetas, self.x) # Shape: (batch_size,)
 
-    # Calculate the distances
-    distances = jnp.abs(obs-sim_data)
+            # Compute the distances
+            distances = np.abs(self.obs-sim_data) # Shape: (batch_size, )
 
-    # Get the indices of the smallest distances
-    best_indices = jnp.argsort(distances)[:N]
+            # Identify indices of accepted samples
+            accepted_indices = np.where(distances < self.eps)[0]
 
-    # Select the corresponding best thetas on sorted indices
-    samples_pos = thetas[best_indices]
+            # Extact accepted samples
+            accepted_samples = thetas[accepted_indices]
 
-    return samples_pos
+            # Add accepted samples to samples_pos
+            samples_pos.extend(accepted_samples)
+            
+            # Stop if we have collected enough samples
+            if len(samples_pos) >= target_samples:
+                break
 
+            # Increment the step count
+            step += 1
 
-
+        if len(samples_pos)<target_samples:
+            raise ValueError(f"Only {len(samples_pos)} accepted samples")
+        
+        return  np.array(samples_pos[:target_samples])
     
+    # Method 2 - JAX Implementation 
+    def infer_method2_jax(self, target_samples, Nsamples, batch_size, prior, simulator_func, key):
+        '''
+        Approximate Bayesian Computation Method 2
+        
+        Returns:
+        samples_pos: ndarray, accepted samples
+        '''
+        samples_pos= []
+        step=0
+
+        while len(samples_pos)<target_samples and step < Nsamples:
+
+            # Split the key once, and then update if for the next iteration
+            keys, key = random.split(key)
+
+            # Now split into batch_size subkeys
+            keys = random.split(keys, batch_size)
+
+            # Generate a batch of candidate samples
+            thetas = prior(batch_size, keys) # shape (batch_size, dim)
+
+            # Generate simulated data
+            sim_data = simulator_func(thetas, self.x, keys) # shape (batch_size,)
+
+            # Compute the distances
+            distances=jnp.abs(self.obs-sim_data) # Shape: (batch_size,)
+
+            # Identify accepted samples (satisfy the distance criterion)
+            accepted_indices = jnp.where(distances<self.eps)[0]
+
+            # Extrac accepted samples from the batch
+            accepted_samples_batch = thetas[accepted_indices]
+
+            # Add accepted samples to the list
+            samples_pos.extend(accepted_samples_batch)
+
+            # Stop if we have collected enough accepted samples
+            if len(samples_pos) >= target_samples:
+                break
+
+            # Increment the step count
+            step+=1
+
+        # if we can't collect enough accepted samples, raise an error
+        if len(samples_pos) < target_samples:
+            raise ValueError(f"Only {len(samples_pos)} accepted sampes after {step} batches")
+        
+        # Return only the firs target_samples
+        return jnp.array(samples_pos[:target_samples])
+    
+    
+    
+    
+ 
+        
+
