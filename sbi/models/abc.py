@@ -36,14 +36,33 @@ class ABCInference:
         samples_pos: ndarray, accepted_samples
         '''
 
-        if self.eps is None:
-            # Use method 1 if eps is None 
-            return self.infer_method1(target_samples, Nsamples, prior, simulator_func, key)
+        # Check the type of simulator_func to decide whether to use Numpy or Jax
+        if 'jax' in simulator_func.__name__:
+            # Use JAX methods if the simulator function is JAX-based
+            if self.eps is None:
+                # Method 1
+                return self.infer_method1_jax(target_samples, Nsamples, prior, simulator_func, key)
+            else:
+                # Method 2
+                return self.infer_method2_jax(target_samples, Nsamples, batch_size, prior, simulator_func, key)
         else:
-            # Use method 2
-            if batch_size is None:
-                raise ValueError(":Method 2 requires batch_size paramater.")
-            return self.infer_method2(target_samples, Nsamples, batch_size, self.eps, prior, simulator_func, key)
+            # Use Numpy method if the simulator function is Numpy-based
+            if self.eps is None:
+                # Method 1(Numpy)
+                return self.infer_method1_numpy(target_samples, Nsamples, prior, simulator_func)
+            else:
+                if batch_size is None:
+                    raise ValueError(":Method 2 requires batch_size parameter.")
+                return self.infer_method2_numpy(target_samples, Nsamples, batch_size, prior, simulator_func)
+            
+        # if self.eps is None:
+        #     # Use method 1 if eps is None 
+        #     return self.infer_method1(target_samples, Nsamples, prior, simulator_func, key)
+        # else:
+        #     # Use method 2
+        #     if batch_size is None:
+        #         raise ValueError(":Method 2 requires batch_size paramater.")
+        #     return self.infer_method2(target_samples, Nsamples, batch_size, self.eps, prior, simulator_func, key)
         
     # Method 1 - Numpy Implementation 
     def infer_method1_numpy(self, target_samples, Nsamples, prior, simulator_func):
@@ -133,7 +152,10 @@ class ABCInference:
                 break
 
             # Increment the step count
-            step += 1
+            #step += 1
+            step += batch_size
+            
+        print(f"The final step is: {step}")
 
         if len(samples_pos)<target_samples:
             raise ValueError(f"Only {len(samples_pos)} accepted samples")
@@ -182,7 +204,10 @@ class ABCInference:
                 break
 
             # Increment the step count
-            step+=1
+            step += batch_size
+            #step+=1
+
+        print(f"The final step is: {step}")
 
         # if we can't collect enough accepted samples, raise an error
         if len(samples_pos) < target_samples:
@@ -197,3 +222,4 @@ class ABCInference:
  
         
 
+ # type: ignore
