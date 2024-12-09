@@ -35,7 +35,10 @@ class SMC:
         # if there are previous samples, resample based on the weights
         if prev_samples is not None and prev_weights is not None:
             resample_indices = np.random.choice(len(prev_samples), size=(Nsamples), p=prev_weights)
-            thetas = prev_samples[resample_indices] # + np.random.normal(0, perturbation_std, size=thetas.shape)
+            thetas = prev_samples[resample_indices] 
+            # Perturb particles
+            perturbation_std = np.std(prev_samples)* 0.1
+            thetas += np.random.normal(0, perturbation_std, size=thetas.shape)
         else:
             # Otherwise generate new samples from the prior
             thetas = prior(Nsamples)
@@ -144,6 +147,9 @@ class SMC_JAX:
         if prev_samples is not None and prev_weights is not None:
             resample_indices = random.choice(keys[0], len(prev_samples), shape=(Nsamples,), p=prev_weights)
             thetas = prev_samples[resample_indices]
+            # Add perturbation to the resamples thetas
+            perturbation_std = jnp.std(prev_samples)*0.1
+            thetas += random.normal(keys[1], shape=thetas.shape) * perturbation_std
         else:
             # Otherwise generate new samples from the prior
             thetas = prior(Nsamples, keys=keys)
