@@ -333,3 +333,5 @@ cython_debug/
 .idea/
 
 .venv-dev
+
+sbi-logs/
