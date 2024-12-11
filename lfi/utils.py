@@ -36,24 +36,34 @@ class SingleRoundNPEC:
         self.npe_c = NPE_C(self.prior, density_estimator=density_estimator_fun)
         _ = self.npe_c.append_simulations(theta, x).train(
             training_batch_size=500,
+            max_num_epochs=1000,
             force_first_round_loss=True
         )
 
         self.posterior = self.npe_c.build_posterior().set_default_x(self.observation)
         return self.posterior
 
-    def plot_training_summary(self, budget):
+    def plot_training_summary(self, budget, savefig=None):
         fig, ax = plt.subplots()
         ax.set_title("NPE-C (single round): D=%d, budget=%d" % (self.dim, budget))
         ax.plot(self.npe_c.summary["training_loss"], ".-", label="tr")
         ax.plot(self.npe_c.summary["validation_loss"], ".-", label="val")
+        ax.set_xlim(1, 1000)
         ax.set_xlabel("Epoch")
         ax.set_ylabel("Loss = Negative Log Likelihood")
         ax.legend()
+        if savefig:
+            plt.savefig(savefig)
         plt.show()
         return fig, ax
 
-    def plot_posterior_samples(self, subset_dims=[0, 1, 2], limits=[-10, 10]):
+    def plot_posterior_samples(
+            self,
+            budget,
+            subset_dims=[0, 1, 2],
+            limits=[-10, 10],
+            savefig=None
+    ):
         samples = self.posterior.sample((1000,), x=self.observation)
         fig, ax = sbi.analysis.pairplot(
             samples,
@@ -62,6 +72,9 @@ class SingleRoundNPEC:
             subset=subset_dims,
             diag="kde"
             )
+        fig.suptitle("NPE-C (single round): D=%d, budget=%d" % (self.dim, budget))
+        if savefig:
+            plt.savefig(savefig)
         plt.show()
         return fig, ax
 

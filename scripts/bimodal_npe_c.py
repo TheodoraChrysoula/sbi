@@ -42,10 +42,21 @@ for i, D in enumerate(D_list):
         )
 
         tic = timeit.default_timer()
-        npe_c_single_round.train(simulation_budget=budget)
+        npe_c_single_round.train(
+            simulation_budget=budget,
+
+        )
         toc = timeit.default_timer()
         print(f"\nTraining time: {toc - tic:.2f} seconds")
 
-        npe_c_single_round.plot_training_summary(budget)
+        npe_c_single_round.plot_training_summary(
+            budget,
+            savefig="../reports/figures/bimodal_npe_c_D%d_budget_%d_training_summary_.png" % (D, budget)
+        )
 
-        npe_c_single_round.plot_posterior_samples(subset_dims=subset_dims, limits=limits)
+        fig, ax = npe_c_single_round.plot_posterior_samples(
+            budget,
+            subset_dims=subset_dims,
+            limits=limits,
+            savefig="../reports/figures/bimodal_npe_c_D%d_budget_%d_posterior_samples_.png" % (D, budget)
+        )
