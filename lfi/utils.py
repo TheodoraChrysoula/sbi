@@ -1,12 +1,12 @@
 import sbi
 from sbi.utils.user_input_checks import check_sbi_inputs, process_prior, process_simulator
-from sbi.inference import simulate_for_sbi, NPE_C
+from sbi.inference import simulate_for_sbi, NPE_C, FMPE
 import matplotlib.pyplot as plt
 import torch
 import sbi.analysis
 import sbi.neural_nets
 
-class SingleRoundNPEC:
+class NPEBase:
     def __init__(self, prior, simulator, observation, density_estimator):
         self.observation = observation
         self.density_estimator = density_estimator
@@ -20,34 +20,17 @@ class SingleRoundNPEC:
         self.simulator = simulator
         self.dim = num_parameters
 
+        self.inference_method = None
+        self.posterior = None
+
     def train(self, simulation_budget):
-        # prepare dataset
-        theta, x = simulate_for_sbi(self.simulator, self.prior, num_simulations=simulation_budget)
-
-        # train density estimator
-        density_estimator_fun = sbi.neural_nets.posterior_nn(
-            model='nsf',
-            hidden_features=100,  # 20, # 50,
-            num_transforms=8,  # 2, # 5,
-            z_score_x="independent",
-            z_score_theta="independent",
-        )
-
-        self.npe_c = NPE_C(self.prior, density_estimator=density_estimator_fun)
-        _ = self.npe_c.append_simulations(theta, x).train(
-            training_batch_size=500,
-            max_num_epochs=1000,
-            force_first_round_loss=True
-        )
-
-        self.posterior = self.npe_c.build_posterior().set_default_x(self.observation)
-        return self.posterior
+        raise NotImplementedError
 
     def plot_training_summary(self, budget, savefig=None):
         fig, ax = plt.subplots()
         ax.set_title("NPE-C (single round): D=%d, budget=%d" % (self.dim, budget))
-        ax.plot(self.npe_c.summary["training_loss"], ".-", label="tr")
-        ax.plot(self.npe_c.summary["validation_loss"], ".-", label="val")
+        ax.plot(self.inference_method.summary["training_loss"], ".-", label="tr")
+        ax.plot(self.inference_method.summary["validation_loss"], ".-", label="val")
         ax.set_xlim(1, 1000)
         ax.set_xlabel("Epoch")
         ax.set_ylabel("Loss = Negative Log Likelihood")
@@ -79,3 +62,57 @@ class SingleRoundNPEC:
         return fig, ax
 
 
+class SingleRoundNPEC(NPEBase):
+    def __init__(self, prior, simulator, observation, density_estimator):
+        super().__init__(prior, simulator, observation, density_estimator)
+
+    def train(self, simulation_budget):
+        # prepare dataset
+        theta, x = simulate_for_sbi(self.simulator, self.prior, num_simulations=simulation_budget)
+
+        # train density estimator
+        density_estimator_fun = sbi.neural_nets.posterior_nn(
+            model='nsf',
+            hidden_features=100,  # 20, # 50,
+            num_transforms=8,  # 2, # 5,
+            z_score_x="independent",
+            z_score_theta="independent",
+        )
+
+        self.inference_method = NPE_C(self.prior, density_estimator=density_estimator_fun)
+        _ = self.inference_method.append_simulations(theta, x).train(
+            training_batch_size=500,
+            max_num_epochs=1000,
+            force_first_round_loss=True
+        )
+
+        self.posterior = self.inference_method.build_posterior().set_default_x(self.observation)
+        return self.posterior
+
+
+class SingleRoundFMPE(NPEBase):
+    def __init__(self, prior, simulator, observation, density_estimator):
+        super().__init__(prior, simulator, observation, density_estimator)
+
+    def train(self, simulation_budget):
+        # prepare dataset
+        theta, x = simulate_for_sbi(self.simulator, self.prior, num_simulations=simulation_budget)
+
+        # # train density estimator
+        # density_estimator_fun = sbi.neural_nets.posterior_nn(
+        #     model='maf',
+        #     hidden_features=100,  # 20, # 50,
+        #     num_transforms=8,  # 2, # 5,
+        #     z_score_x="independent",
+        #     z_score_theta="independent",
+        # )
+
+        self.inference_method = FMPE(self.prior)
+        _ = self.inference_method.append_simulations(theta, x).train(
+            training_batch_size=500,
+            max_num_epochs=1000,
+            force_first_round_loss=True
+        )
+
+        self.posterior = self.inference_method.build_posterior().set_default_x(self.observation)
+        return self.posterior
