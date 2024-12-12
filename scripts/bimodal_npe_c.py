@@ -13,8 +13,10 @@ import lfi.utils
 np.random.seed(21355)
 torch.manual_seed(21)
 
-D_list = [2,] # [2, 5]
-budget_list = [1_000] #  [1_000, 5_000]
+D_list = [2, 5, 10, 20, 50]
+D_list.reverse()
+budget_list = [1_000, 5_000, 10_000, 20_000, 50_000, 100_000]
+budget_list.reverse()
 
 for i, D in enumerate(D_list):
     subset_dims = [i for i in range(D)] if D < 10 else [i for i in range(10)]
