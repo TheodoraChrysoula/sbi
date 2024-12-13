@@ -5,9 +5,6 @@ import torch
 import torch.distributions as dist
 import torch.nn as nn
 
-from scripts.bimodal_npe_c import observation
-
-
 class MixtureDensityNetwork(nn.Module):
     def __init__(self, K, D):
         """
@@ -44,14 +41,14 @@ class MixtureDensityNetwork(nn.Module):
         phi = phi.view(-1, self.K, self.D, 2)  # [batch_size, K, D, 2]
 
         # Split output into mean and log(sigma)
-        mu = phi[..., 0]
-        sigma = torch.exp(phi[..., 1])  # Ensure positivity of sigma
+        mu = phi[..., 0] # shape: [batch_size, K, D]
+        sigma = torch.exp(phi[..., 1]) + .1 # shape: [batch_size, K, D]
 
         # Create the component distributions (independent Normal distributions)
         component_distributions = dist.Independent(
             dist.Normal(loc=mu, scale=sigma),
             reinterpreted_batch_ndims=1,
-        )
+        ) # shape: [batch_size, K, D]
 
         # Create mixture weights (uniform distribution over components)
         mixture_weights = torch.ones(x.size(0), self.K, device=x.device) / self.K
@@ -125,8 +122,8 @@ class MixtureDensityNetwork(nn.Module):
             plt.xlabel("x_1")
             plt.ylabel("x_2")
             plt.title("Posterior Samples")
-            plt.xlim(-5, 5)
-            plt.ylim(-5, 5)
+            plt.xlim(-10, 10)
+            plt.ylim(-10, 10)
         plt.show()
 
 
@@ -134,6 +131,8 @@ class MixtureDensityNetwork(nn.Module):
 if __name__ == "__main__":
     D = 3  # Dimension of each Gaussian
     K = 2  # Number of Gaussian components
+    BS = 10
+    N = 10_000
 
     # Initialize the posterior approximation
     posterior = MixtureDensityNetwork(K, D)
@@ -141,7 +140,7 @@ if __name__ == "__main__":
 
     # prior
     prior = dist.Uniform(-5 * torch.ones(D), 5 * torch.ones(D))
-    th = prior.sample((1000,)).detach()
+    th = prior.sample((N,)).detach()
 
     def simulator(theta, mixture_weight=0.5):
         N, D = theta.shape
@@ -157,10 +156,10 @@ if __name__ == "__main__":
             choice = np.random.choice([0, 1], p=[mixture_weight, 1 - mixture_weight])
             if choice == 0:
                 # Sample from Gaussian centered at theta + 3
-                sample = np.random.normal(loc=center_pos, scale=1.0, size=D)
+                sample = np.random.normal(loc=center_pos, scale=.1, size=D)
             else:
                 # Sample from Gaussian centered at theta - 3
-                sample = np.random.normal(loc=center_neg, scale=1.0, size=D)
+                sample = np.random.normal(loc=center_neg, scale=.1, size=D)
 
             samples.append(sample)
 
@@ -172,9 +171,9 @@ if __name__ == "__main__":
     print("Log probability:", log_prob)
 
     # train
-    optimizer = torch.optim.Adam(posterior.net.parameters(), lr=1e-3)
+    optimizer = torch.optim.Adam(posterior.net.parameters(), lr=1e-2)
     loss_list = []
-    for i in range(500):
+    for i in range(100):
         optimizer.zero_grad()
         loss = posterior.loss(th, x_0=x)
         loss_list.append(loss.item())
@@ -184,7 +183,8 @@ if __name__ == "__main__":
             print(f"Epoch {i}, Loss: {loss.item()}")
 
 
-    approx_post_samples = posterior.sample(100, x_0=observation)
+    approx_post_samples = posterior.sample(1000, x_0=observation)
     posterior.plot_samples(approx_post_samples[:, 0, :2])
 
-    posterior.net(observation).view(-1, K, D, 2)[0, :, :, 1]
+    print(posterior.net(observation).view(-1, K, D, 2)[0, :, :, 0])
+    print(torch.exp(posterior.net(observation).view(-1, K, D, 2)[0, :, :, 1]))
