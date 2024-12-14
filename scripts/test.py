@@ -18,12 +18,12 @@ budget = 30_000
 sim = lfi.simulators.BimodalGaussian(sigma_noise=0.1)
 prior = lfi.priors.UniformPrior(low=-10, high=10, dim=D)
 observation = np.zeros(D)
-prior_sbi = prior.sbi_uniform()
+prior_sbi = prior.return_sbi_object()
 
 
 inference_method = lfi.utils.SingleRoundFMPE(
     prior=prior_sbi,
-    simulator=sim.simulate_pytorch,
+    simulator=sim.sample_pytorch,
     observation=observation,
     density_estimator=None
 )

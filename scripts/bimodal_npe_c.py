@@ -25,7 +25,7 @@ for i, D in enumerate(D_list):
     sim = lfi.simulators.BimodalGaussian(sigma_noise=0.1)
     prior = lfi.priors.UniformPrior(low=-10, high=10, dim=D)
     observation = np.zeros(D)
-    prior_sbi = prior.sbi_uniform()
+    prior_sbi = prior.return_sbi_object()
 
     density_estimator_fun = sbi.neural_nets.posterior_nn(
         model='nsf',
@@ -38,7 +38,7 @@ for i, D in enumerate(D_list):
     for j, budget in enumerate(budget_list):
         npe_c_single_round = lfi.utils.SingleRoundNPEC(
             prior=prior_sbi,
-            simulator=sim.simulate_pytorch,
+            simulator=sim.sample_pytorch,
             observation=observation,
             density_estimator=density_estimator_fun,
         )

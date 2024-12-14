@@ -1,0 +1,8 @@
+black
+flake8
+ipython
+jupyterlab
+loguru
+mkdocs
+python-dotenv
+-e .

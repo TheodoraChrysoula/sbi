@@ -27,6 +27,7 @@ class MixtureDensityNetwork(nn.Module):
             nn.Linear(64, 2 * D * K),  # Outputs mean and log-sigma for each Gaussian component
         )
 
+
     def forward(self, x):
         """
         Forward pass that produces the mixture distribution.
@@ -37,6 +38,7 @@ class MixtureDensityNetwork(nn.Module):
         Returns:
             torch.distributions.MixtureSameFamily: The mixture distribution.
         """
+
         phi = self.net(x)
         phi = phi.view(-1, self.K, self.D, 2)  # [batch_size, K, D, 2]
 
@@ -129,7 +131,7 @@ class MixtureDensityNetwork(nn.Module):
 
 # Example usage
 if __name__ == "__main__":
-    D = 3  # Dimension of each Gaussian
+    D = 10  # Dimension of each Gaussian
     K = 2  # Number of Gaussian components
     BS = 10
     N = 10_000
@@ -171,7 +173,7 @@ if __name__ == "__main__":
     print("Log probability:", log_prob)
 
     # train
-    optimizer = torch.optim.Adam(posterior.net.parameters(), lr=1e-2)
+    optimizer = torch.optim.Adam(posterior.net.parameters(), lr=1e-3)
     loss_list = []
     for i in range(100):
         optimizer.zero_grad()
@@ -188,3 +190,5 @@ if __name__ == "__main__":
 
     print(posterior.net(observation).view(-1, K, D, 2)[0, :, :, 0])
     print(torch.exp(posterior.net(observation).view(-1, K, D, 2)[0, :, :, 1]))
+
+
