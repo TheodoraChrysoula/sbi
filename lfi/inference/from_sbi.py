@@ -8,6 +8,8 @@ import sbi.neural_nets
 import numpy as np
 import jax.numpy as jnp
 import typing
+import pandas as pd
+import seaborn as sns
 from .base import InferenceBase
 
 class NPEBase(InferenceBase):
@@ -41,7 +43,7 @@ class NPEBase(InferenceBase):
 
     def plot_training_summary(self, budget, savefig=None):
         fig, ax = plt.subplots()
-        ax.set_title("NPE-C (single round): D=%d, budget=%d" % (self.dim, budget))
+        ax.set_title("NPE-C (single round): D=%d, budget=%d" % (self.D, budget))
         ax.plot(self.inference_method.summary["training_loss"], ".-", label="tr")
         ax.plot(self.inference_method.summary["validation_loss"], ".-", label="val")
         ax.set_xlim(1, 1000)
@@ -55,35 +57,60 @@ class NPEBase(InferenceBase):
 
     def plot_posterior_samples(
             self,
-            budget,
+            samples: np.ndarray, # (N, Dy)
+            budget: int,
+            posterior_modes: np.ndarray = None, # (N, Dy)
             subset_dims=[0, 1, 2],
             limits=[-10, 10],
             savefig=None
     ):
-        samples = self.posterior.sample((1000,), x=self.observation)
-        fig, ax = sbi.analysis.pairplot(
+        # Convert samples to a DataFrame for easier Seaborn handling
+        samples_df = pd.DataFrame(
             samples,
-            limits=torch.tensor(limits).repeat(len(subset_dims), 1),
-            points=self.observation,
-            subset=subset_dims,
-            diag="kde"
-            )
-        fig.suptitle("NPE-C (single round): D=%d, budget=%d" % (self.dim, budget))
+            columns=[f"x_{i + 1}" for i in range(samples.shape[1])]
+        )
+
+        # Create the pairplot
+        g = sns.pairplot(
+            data=samples_df,
+            vars=[f"x_{i + 1}" for i in subset_dims],
+            kind="scatter",  # Base pairplot kind
+            diag_kind="kde",  # KDE for diagonal plots
+            plot_kws={'alpha': 0.5},  # Scatter plot transparency
+        )
+
+        g.fig.suptitle(f"NPE-C (single round): D={self.D}, budget={budget}", y=1.02)
+
+        # Optionally add posterior mode points
+        if posterior_modes is not None:
+            posterior_modes_df = pd.DataFrame(posterior_modes, columns=[f"x_{i + 1}" for i in range(samples.shape[1])])
+            for dim_x in subset_dims:
+                for dim_y in subset_dims:
+                    if dim_x != dim_y: # Skip diagonal plots
+                        ax = g.axes[subset_dims.index(dim_y), subset_dims.index(dim_x)]
+                        ax.scatter(
+                            posterior_modes_df[f"x_{dim_x + 1}"],
+                            posterior_modes_df[f"x_{dim_y + 1}"],
+                            color='red', label='Posterior Modes'
+                        )
+
+        # Save figure if a path is provided
         if savefig:
             plt.savefig(savefig)
-        plt.show()
-        return fig, ax
 
+        # Show the plot
+        plt.show()
+        return g
 
 class NPEASingleRound(NPEBase):
     def __init__(self, prior, simulator, observation):
         super().__init__(prior, simulator, observation, None)
 
-    def train(self, simulation_budget):
+    def train(self, simulation_budget, num_components=10):
         # prepare dataset
         theta, x = simulate_for_sbi(self.simulator, self.prior, num_simulations=simulation_budget)
 
-        self.inference_method = NPE_A(self.prior, num_components=10)
+        self.inference_method = NPE_A(self.prior, num_components=num_components)
         _ = self.inference_method.append_simulations(theta, x).train(
             training_batch_size=500,
             max_num_epochs=1000,

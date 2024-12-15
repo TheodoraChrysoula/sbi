@@ -21,6 +21,8 @@ dependencies = [
     "sbi",
     "jax",
     "matplotlib",
+    "pandas",
+    "seaborn",
 ]
 
 [tool.black]
