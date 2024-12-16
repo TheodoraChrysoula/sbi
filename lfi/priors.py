@@ -6,12 +6,29 @@ import jax
 from jax import random
 import jax.numpy as jnp
 
+class BasePrior:
+    def __init__(self, dim):
+        self.dim = dim
 
-class UniformPrior:
+    def sample_numpy(self, N):
+        raise NotImplementedError
+
+    def sample_pytorch(self, N):
+        raise NotImplementedError
+
+    def sample_jax(self, N, keys):
+        raise NotImplementedError
+
+    def return_sbi_object(self):
+        raise NotImplementedError
+
+
+class UniformPrior(BasePrior):
     def __init__(self, low, high, dim):
         self.low = low
         self.high = high
         self.dim = dim
+        super().__init__(dim)
 
     def sample_numpy(self, N):
         return np.random.uniform(self.low, self.high, size=(N, self.dim)).astype(np.float32)

@@ -10,40 +10,51 @@ import jax.numpy as jnp
 import typing
 import pandas as pd
 import seaborn as sns
+import timeit
 from .base import InferenceBase
+from lfi.priors import BasePrior
+from lfi.simulators import BaseSimulator
 
 class NPEBase(InferenceBase):
     def __init__(
             self,
-            prior,
-            simulator: callable, # Callable: (N, D) -> (N, Dy)
-            observation: typing.Union[np.ndarray, jnp.ndarray, torch.Tensor], # (1, Dy)
-            density_estimator: callable,
-    ):
-        self.density_estimator = density_estimator
+            name: str,
+            prior: BasePrior,
+            simulator: BaseSimulator,
+            observation: np.ndarray,  # (1, Dy)
+        ):
+        self.name = name
 
         # prepare prior and simulator
-        prior, num_parameters, prior_returns_numpy = process_prior(prior)
-        simulator = process_simulator(simulator, prior, prior_returns_numpy)
-        check_sbi_inputs(simulator, prior)
+        sbi_prior, num_parameters, prior_returns_numpy = process_prior(prior.return_sbi_object())
+        sim = process_simulator(simulator.sample_pytorch, sbi_prior, prior_returns_numpy)
+        check_sbi_inputs(sim, sbi_prior)
         dim = num_parameters
-        Dy = observation.shape[1]
+        dim_y = observation.shape[1]
 
         self.inference_method = None
         self.posterior = None
-        super().__init__(prior, simulator, observation, dim, Dy)
+        super().__init__(name, prior, simulator, observation, dim, dim_y)
 
-    def train(self, simulation_budget):
+    def fit(self, budget: int = 1_000 , *args, **kwargs):
         raise NotImplementedError
 
-    def sample(self, num_samples):
+    def sample(self, nof_samples: int = 100, *args, **kwargs):
         if self.posterior is None:
             raise ValueError("Posterior is not trained yet.")
-        return self.posterior.sample((num_samples,), x=self.observation)
+        return self.posterior.sample((nof_samples,), x=torch.Tensor(self.observation))
+
+    def fit_and_sample(self, budget, num_samples):
+        tic = timeit.default_timer()
+        self.fit(budget)
+        samples = self.sample(num_samples)
+        toc = timeit.default_timer()
+        print(f"\nTraining/Sampling time: {toc - tic:.2f} seconds")
+        return samples, toc - tic
 
     def plot_training_summary(self, budget, savefig=None):
         fig, ax = plt.subplots()
-        ax.set_title("NPE-C (single round): D=%d, budget=%d" % (self.D, budget))
+        ax.set_title("%s: D=%d, budget=%d" % (self.name, self.dim, budget))
         ax.plot(self.inference_method.summary["training_loss"], ".-", label="tr")
         ax.plot(self.inference_method.summary["validation_loss"], ".-", label="val")
         ax.set_xlim(1, 1000)
@@ -55,123 +66,81 @@ class NPEBase(InferenceBase):
         plt.show()
         return fig, ax
 
-    def plot_posterior_samples(
-            self,
-            samples: np.ndarray, # (N, Dy)
-            budget: int,
-            posterior_modes: np.ndarray = None, # (N, Dy)
-            subset_dims=[0, 1, 2],
-            limits=[-10, 10],
-            savefig=None
-    ):
-        # Convert samples to a DataFrame for easier Seaborn handling
-        samples_df = pd.DataFrame(
-            samples,
-            columns=[f"x_{i + 1}" for i in range(samples.shape[1])]
-        )
-
-        # Create the pairplot
-        g = sns.pairplot(
-            data=samples_df,
-            vars=[f"x_{i + 1}" for i in subset_dims],
-            kind="scatter",  # Base pairplot kind
-            diag_kind="kde",  # KDE for diagonal plots
-            plot_kws={'alpha': 0.5},  # Scatter plot transparency
-        )
-
-        g.fig.suptitle(f"NPE-C (single round): D={self.D}, budget={budget}", y=1.02)
-
-        # Optionally add posterior mode points
-        if posterior_modes is not None:
-            posterior_modes_df = pd.DataFrame(posterior_modes, columns=[f"x_{i + 1}" for i in range(samples.shape[1])])
-            for dim_x in subset_dims:
-                for dim_y in subset_dims:
-                    if dim_x != dim_y: # Skip diagonal plots
-                        ax = g.axes[subset_dims.index(dim_y), subset_dims.index(dim_x)]
-                        ax.scatter(
-                            posterior_modes_df[f"x_{dim_x + 1}"],
-                            posterior_modes_df[f"x_{dim_y + 1}"],
-                            color='red', label='Posterior Modes'
-                        )
-
-        # Save figure if a path is provided
-        if savefig:
-            plt.savefig(savefig)
-
-        # Show the plot
-        plt.show()
-        return g
 
 class NPEASingleRound(NPEBase):
     def __init__(self, prior, simulator, observation):
-        super().__init__(prior, simulator, observation, None)
+        super().__init__("NPE-A (single round)", prior, simulator, observation)
 
-    def train(self, simulation_budget, num_components=10):
+    def fit(self, budget: int = 1_000, num_components=10):
         # prepare dataset
-        theta, x = simulate_for_sbi(self.simulator, self.prior, num_simulations=simulation_budget)
+        theta, x = simulate_for_sbi(self.simulator.sample_pytorch, self.prior, num_simulations=budget)
 
-        self.inference_method = NPE_A(self.prior, num_components=num_components)
+        self.inference_method = NPE_A(self.prior.return_sbi_object(), num_components=num_components)
         _ = self.inference_method.append_simulations(theta, x).train(
             training_batch_size=500,
             max_num_epochs=1000,
             final_round=True
         )
 
-        self.posterior = self.inference_method.build_posterior().set_default_x(self.observation)
+        self.posterior = self.inference_method.build_posterior().set_default_x(torch.Tensor(self.observation))
         return self.posterior
 
+    def fit_and_sample(self, budget, nof_samples, num_components=10):
+        tic = timeit.default_timer()
+        self.fit(budget, num_components)
+        samples = self.sample(nof_samples)
+        toc = timeit.default_timer()
+        print(f"\nTraining/Sampling time: {toc - tic:.2f} seconds")
+        return samples, toc - tic
 
 class NPECSingleRound(NPEBase):
-    def __init__(self, prior, simulator, observation, density_estimator):
-        super().__init__(prior, simulator, observation, density_estimator)
+    def __init__(self, prior, simulator, observation):
+        super().__init__("NPE-C (single round)", prior, simulator, observation)
 
-    def train(self, simulation_budget):
-        # prepare dataset
-        theta, x = simulate_for_sbi(self.simulator, self.prior, num_simulations=simulation_budget)
+    def fit(self, budget, density_estimator=None):
+        theta, x = simulate_for_sbi(self.simulator.sample_pytorch, self.prior.return_sbi_object(), num_simulations=budget)
 
-        # train density estimator
-        density_estimator_fun = sbi.neural_nets.posterior_nn(
-            model='nsf',
-            hidden_features=100,  # 20, # 50,
-            num_transforms=8,  # 2, # 5,
-            z_score_x="independent",
-            z_score_theta="independent",
-        )
+        if density_estimator is None:
+            density_estimator = sbi.neural_nets.posterior_nn(
+                model='nsf',
+                hidden_features=100,
+                num_transforms=8,
+                z_score_x="independent",
+                z_score_theta="independent",
+            )
 
-        self.inference_method = NPE_C(self.prior, density_estimator=density_estimator_fun)
+        self.inference_method = NPE_C(self.prior.return_sbi_object(), density_estimator=density_estimator)
         _ = self.inference_method.append_simulations(theta, x).train(
             training_batch_size=500,
             max_num_epochs=1000,
             force_first_round_loss=True
         )
 
-        self.posterior = self.inference_method.build_posterior().set_default_x(self.observation)
+        self.posterior = self.inference_method.build_posterior().set_default_x(torch.Tensor(self.observation))
         return self.posterior
+
+    def fit_and_sample(self, budget, num_samples, density_estimator=None):
+        tic = timeit.default_timer()
+        self.fit(budget, density_estimator)
+        samples = self.sample(num_samples)
+        toc = timeit.default_timer()
+        print(f"\nTraining/Sampling time: {toc - tic:.2f} seconds")
+        return samples, toc - tic
 
 
 class FMPESingleRound(NPEBase):
-    def __init__(self, prior, simulator, observation, density_estimator):
-        super().__init__(prior, simulator, observation, density_estimator)
+    def __init__(self, prior, simulator, observation):
+        super().__init__("FMPE (single round)", prior, simulator, observation)
 
-    def train(self, simulation_budget):
+    def fit(self, budget):
         # prepare dataset
-        theta, x = simulate_for_sbi(self.simulator, self.prior, num_simulations=simulation_budget)
+        theta, x = simulate_for_sbi(self.simulator.sample_pytorch, self.prior, num_simulations=budget)
 
-        # # train density estimator
-        # density_estimator_fun = sbi.neural_nets.posterior_nn(
-        #     model='maf',
-        #     hidden_features=100,  # 20, # 50,
-        #     num_transforms=8,  # 2, # 5,
-        #     z_score_x="independent",
-        #     z_score_theta="independent",
-        # )
-
-        self.inference_method = FMPE(self.prior)
+        self.inference_method = FMPE(self.prior.return_sbi_object())
         _ = self.inference_method.append_simulations(theta, x).train(
             training_batch_size=500,
             max_num_epochs=1000,
-            force_first_round_loss=True
         )
 
-        self.posterior = self.inference_method.build_posterior().set_default_x(self.observation)
+        self.posterior = self.inference_method.build_posterior().set_default_x(torch.Tensor(self.observation))
         return self.posterior

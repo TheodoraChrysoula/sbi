@@ -1,31 +1,27 @@
-import os, sys
-
 import numpy as np
-import sbi
-import sbi.analysis
-import timeit
 import torch
-sys.path.insert(0, os.path.abspath('..'))
 import lfi
-import lfi.utils
-
+import sbi
 
 np.random.seed(21355)
 torch.manual_seed(21)
 
-D_list = [2, 5, 10, 20, 50]
+D_list = [2] # , 5, 10, 20] # 50, 100]
 D_list.reverse()
-budget_list = [1_000, 5_000, 10_000, 20_000, 50_000, 100_000]
+budget_list = [1_000] # ,5_000 10_000, 20_000, 50_000, 100_000]
 budget_list.reverse()
 
 for i, D in enumerate(D_list):
     subset_dims = [i for i in range(D)] if D < 10 else [i for i in range(10)]
     limits = [-10, 10]
 
+    # set up the experiment
     sim = lfi.simulators.BimodalGaussian(sigma_noise=0.1)
     prior = lfi.priors.UniformPrior(low=-10, high=10, dim=D)
-    observation = np.zeros(D)
-    prior_sbi = prior.return_sbi_object()
+    observation = np.zeros((1, D))
+    posterior_modes = np.ones((2, D))
+    posterior_modes[0, :] = -3.
+    posterior_modes[1, :] = 3.
 
     density_estimator_fun = sbi.neural_nets.posterior_nn(
         model='nsf',
@@ -36,29 +32,23 @@ for i, D in enumerate(D_list):
     )
 
     for j, budget in enumerate(budget_list):
-        npe_c_single_round = lfi.utils.SingleRoundNPEC(
-            prior=prior_sbi,
-            simulator=sim.sample_pytorch,
-            observation=observation,
-            density_estimator=density_estimator_fun,
+        inference = lfi.inference.from_sbi.NPECSingleRound(
+            prior=prior,
+            simulator=sim,
+            observation=observation
         )
 
-        tic = timeit.default_timer()
-        npe_c_single_round.train(
-            simulation_budget=budget,
+        samples, time = inference.fit_and_sample(budget, 100, density_estimator=density_estimator_fun)
 
-        )
-        toc = timeit.default_timer()
-        print(f"\nTraining time: {toc - tic:.2f} seconds")
-
-        npe_c_single_round.plot_training_summary(
-            budget,
-            savefig="../reports/figures/bimodal_npe_c_D%d_budget_%d_training_summary_.png" % (D, budget)
+        _ = inference.plot_training_summary(
+            budget=budget,
+            savefig="../reports/figures/bimodal_npe_c/D_%d_budget_%d_training_summary.png" % (D, budget)
         )
 
-        fig, ax = npe_c_single_round.plot_posterior_samples(
-            budget,
+        _ = inference.plot_posterior_samples(
+            samples=samples,
+            budget=budget,
+            posterior_modes=posterior_modes,
             subset_dims=subset_dims,
-            limits=limits,
-            savefig="../reports/figures/bimodal_npe_c_D%d_budget_%d_posterior_samples_.png" % (D, budget)
+            savefig="../reports/figures/bimodal_npe_c/D_%d_budget_%d_posterior_samples.png" % (D, budget)
         )
