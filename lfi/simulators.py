@@ -17,8 +17,9 @@ class UniformPrior:
         def sample_one(key):
             return random.uniform(key, shape=(self.dim,), minval=self.low, maxval=self.high, dtype=jnp.float32)
         return jax.vmap(sample_one)(keys)
+    
 
-
+ 
 class LinearSimulator:
     def __init__(self, sigma_noise):
         self.sigma_noise = sigma_noise

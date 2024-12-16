@@ -2,7 +2,7 @@
 # GLOBALS                                                                       #
 #################################################################################
 
-PROJECT_NAME = sbi
+PROJECT_NAME = lfi
 PYTHON_VERSION = 3.10
 PYTHON_INTERPRETER = python
 
@@ -29,14 +29,14 @@ clean:
 ## Lint using flake8 and black (use `make format` to do formatting)
 .PHONY: lint
 lint:
-	flake8 sbi
-	isort --check --diff --profile black sbi
-	black --check --config pyproject.toml sbi
+	flake8 lfi
+	isort --check --diff --profile black lfi
+	black --check --config pyproject.toml lfi
 
 ## Format source code with black
 .PHONY: format
 format:
-	black --config pyproject.toml sbi
+	black --config pyproject.toml lfi
 
 
 
@@ -60,7 +60,7 @@ create_environment:
 ## Make Dataset
 .PHONY: data
 data: requirements
-	$(PYTHON_INTERPRETER) sbi/dataset.py
+	$(PYTHON_INTERPRETER) lfi/dataset.py
 
 
 #################################################################################

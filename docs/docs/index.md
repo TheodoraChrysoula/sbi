@@ -1,8 +1,8 @@
-# SBI documentation!
+# lfi documentation!
 
 ## Description
 
-SBI examples
+lfi examples
 
 ## Commands
 

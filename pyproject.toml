@@ -3,9 +3,9 @@ requires = ["flit_core >=3.2,<4"]
 build-backend = "flit_core.buildapi"
 
 [project]
-name = "sbi"
+name = "lfi"
 version = "0.0.1"
-description = "SBI examples"
+description = "lfi examples"
 authors = [
   { name = "Theodora Chrysoula" },
 ]
@@ -28,5 +28,5 @@ exclude = '''
 '''
 
 [tool.ruff.lint.isort]
-known_first_party = ["sbi"]
+known_first_party = ["lfi"]
 force_sort_within_sections = true
