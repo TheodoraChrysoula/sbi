@@ -60,13 +60,13 @@ class MixtureDensityNetwork(InferenceBase):
 
     def fit(self, budget: int = 1_000, nof_components=10, nof_epochs=100):
         # prepare dataset
-        theta = self.prior.sample_pytorch(budget)
-        x = self.simulator.sample_pytorch(theta)
+        theta = self.prior.sample_pytorch(budget) # Shape: [budget, D]
+        x = self.simulator.sample_pytorch(theta) # Shape: [budget, Dy]
 
         # Initialize the network
         self.net = MDN(self.dim, nof_components)
 
-        # train it
+        # training loop
         optimizer = torch.optim.Adam(self.net.parameters(), lr=1e-3)
         loss_list = []
         for i in range(nof_epochs):

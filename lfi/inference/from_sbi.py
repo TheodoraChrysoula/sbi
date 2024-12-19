@@ -69,11 +69,11 @@ class NPEBase(InferenceBase):
 
 class NPEASingleRound(NPEBase):
     def __init__(self, prior, simulator, observation):
-        super().__init__("NPE-A (single round)", prior, simulator, observation)
+        super().__init__("npe_a_single_round", prior, simulator, observation)
 
     def fit(self, budget: int = 1_000, num_components=10):
         # prepare dataset
-        theta, x = simulate_for_sbi(self.simulator.sample_pytorch, self.prior, num_simulations=budget)
+        theta, x = simulate_for_sbi(self.simulator.sample_pytorch, self.prior.return_sbi_object(), num_simulations=budget)
 
         self.inference_method = NPE_A(self.prior.return_sbi_object(), num_components=num_components)
         _ = self.inference_method.append_simulations(theta, x).train(
@@ -92,6 +92,7 @@ class NPEASingleRound(NPEBase):
         toc = timeit.default_timer()
         print(f"\nTraining/Sampling time: {toc - tic:.2f} seconds")
         return samples, toc - tic
+
 
 class NPECSingleRound(NPEBase):
     def __init__(self, prior, simulator, observation):
@@ -119,10 +120,10 @@ class NPECSingleRound(NPEBase):
         self.posterior = self.inference_method.build_posterior().set_default_x(torch.Tensor(self.observation))
         return self.posterior
 
-    def fit_and_sample(self, budget, num_samples, density_estimator=None):
+    def fit_and_sample(self, budget, nof_samples, density_estimator=None):
         tic = timeit.default_timer()
         self.fit(budget, density_estimator)
-        samples = self.sample(num_samples)
+        samples = self.sample(nof_samples)
         toc = timeit.default_timer()
         print(f"\nTraining/Sampling time: {toc - tic:.2f} seconds")
         return samples, toc - tic
@@ -134,7 +135,7 @@ class FMPESingleRound(NPEBase):
 
     def fit(self, budget):
         # prepare dataset
-        theta, x = simulate_for_sbi(self.simulator.sample_pytorch, self.prior, num_simulations=budget)
+        theta, x = simulate_for_sbi(self.simulator.sample_pytorch, self.prior.return_sbi_object(), num_simulations=budget)
 
         self.inference_method = FMPE(self.prior.return_sbi_object())
         _ = self.inference_method.append_simulations(theta, x).train(

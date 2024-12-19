@@ -5,8 +5,8 @@ from jax import random
 import jax.numpy as jnp
 
 class BaseSimulator:
-    def __init__(self):
-        pass
+    def __init__(self, name):
+        self.name = name
 
     def sample_numpy(self, theta):
         raise NotImplementedError
@@ -21,7 +21,7 @@ class BaseSimulator:
 class GaussianNoise(BaseSimulator):
     def __init__(self, sigma_noise):
         self.sigma_noise = sigma_noise
-        super().__init__()
+        super().__init__("gaussian_noise")
 
     def sample_numpy(self, theta):
         return np.random.normal(theta, self.sigma_noise)
@@ -38,7 +38,7 @@ class GaussianNoise(BaseSimulator):
 class BimodalGaussian(BaseSimulator):
     def __init__(self, sigma_noise):
         self.sigma_noise = sigma_noise
-        super().__init__()
+        super().__init__("bimodal_gaussian")
 
     def sample_numpy(self, theta):
         # for each theta in the batch select either the first or the second mode

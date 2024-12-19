@@ -23,6 +23,8 @@ dependencies = [
     "matplotlib",
     "pandas",
     "seaborn",
+    "yaml",
+    "sbibm",
 ]
 
 [tool.black]
