@@ -41,11 +41,12 @@ class ABCRejection(InferenceBase):
         # Compute the distances
         distances = np.linalg.norm(self.observation - sim, axis=1)
         #print(distances.shape)
-        print(f"Print the first 10 distances: {distances[:10]}")
+        #print(f"Print the first 10 distances: {distances[:10]}")
 
         # Identify accepted samples (satisfy the distance criterion)
         accepted_indices = np.where(distances < self.tolerance)[0]
-        accepted_samples = thetas[accepted_indices]
+        best_indices = np.argsort(distances)
+        accepted_samples = thetas[best_indices]
         self.posterior = accepted_samples
 
         
@@ -67,6 +68,6 @@ class ABCRejection(InferenceBase):
             return samples
         else:
             # Sample from the posterior
-            samples = np.sort(self.posterior)[:nof_samples]
+            samples = self.posterior[:nof_samples]
             return samples
         

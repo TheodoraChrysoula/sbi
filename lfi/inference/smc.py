@@ -103,7 +103,7 @@ class SMCInference(InferenceBase):
             return samples
         else:
             # Sample from the posterior
-            samples = np.sort(self.posterior)[:nof_samples]
+            samples = self.posterior[:nof_samples]
             print(f"Final posterior: {samples.shape}")
             return samples
         
