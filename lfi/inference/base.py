@@ -46,9 +46,10 @@ class InferenceBase:
             samples: np.ndarray, # (N, Dy)
             posterior_modes: np.ndarray = None, # (N, Dy)
             subset_dims: typing.Union[None, list] = None,
+            limits = [-10, 10],
             savefig=None,
             budget=None # Add budget as an argument
-    ):
+    ):           
         # Convert samples to a DataFrame for easier Seaborn plotting
         samples_df = pd.DataFrame(
             samples, 

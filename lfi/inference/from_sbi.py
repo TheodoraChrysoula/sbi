@@ -27,8 +27,8 @@ class NPEBase(InferenceBase):
         self.name = name
 
         # prepare prior and simulator
-        sbi_prior, num_parameters, prior_returns_numpy = process_prior(prior.return_sbi_object())
-        sim = process_simulator(simulator.sample_pytorch, sbi_prior, prior_returns_numpy)
+        sbi_prior, num_parameters, prior_returns_numpy = process_prior(prior)
+        sim = process_simulator(simulator, sbi_prior, prior_returns_numpy)
         check_sbi_inputs(sim, sbi_prior)
         # Parameters of the prior
         dim = num_parameters
@@ -59,7 +59,7 @@ class NPEBase(InferenceBase):
         ax.set_title("%s: D=%d, budget=%d" % (self.name, self.dim, budget))
         ax.plot(self.inference_method.summary["training_loss"], ".-", label = "tr")
         ax.plot(self.inference_method.summary["validation_loss"], ".-", label = "val")
-        ax.set_xlimit(1,1000),
+        ax.set_xlim(1,1000),
         ax.set_xlabel("Epoch"),
         ax.set_ylabel("Loss = Negative Log Likelihood"),
         ax.legend()
@@ -69,22 +69,22 @@ class NPEBase(InferenceBase):
         return fig, ax
     
 
-class NPEA(NPEBase):
+class NPEASingleRound(NPEBase):
     def __init__(self, prior, simulator, observation):
         super().__init__("NPE-A (single round)", prior, simulator, observation)
 
     def fit(self, budget: int = 1_000, num_components=10):
         # prepare dataset
-        theta, x = simulate_for_sbi(self.simulator.sample_pytorch, self.prior, num_simulations=budget)
+        theta, x = simulate_for_sbi(self.simulator, self.prior, num_simulations=budget)
 
-        self.inference_method = NPE_A(self.prior.return_sbi_object(), num_components=num_components)
+        self.inference_method = NPE_A(self.prior, num_components=num_components)
         _ = self.inference_method.append_simulations(theta, x).train(
             training_batch_size=500,
             max_num_epochs=1000,
             final_round=True
         )
 
-        self.posterior = self.inference_method.build_posterior().set_default_x(torch.Tesnor(self.observation))
+        self.posterior = self.inference_method.build_posterior().set_default_x(torch.Tensor(self.observation))
         return self.posterior
     
     def fit_and_sample(self, budget, num_samples, num_components = 10):
@@ -92,15 +92,15 @@ class NPEA(NPEBase):
         self.fit(budget, num_components)
         samples = self.sample(num_samples)
         toc = timeit.default_timer()
-        print(f"\nTraining/Samling time: {toc - tic:.2f} seconds")
+        print(f"\nTraining/Sampling time: {toc - tic:.2f} seconds")
         return samples, toc - tic
     
-class NPEC(NPEBase):
+class NPECSingleRound(NPEBase):
     def __init__(self, prior, simulator, observation):
         super().__init__("NPE-C (single round)", prior, simulator, observation)
 
     def fit(self, budget, density_estimator=None):
-        theta, x = simulate_for_sbi(self.simulator.sample_pytorch, self.prior, num_simulations=budget)
+        theta, x = simulate_for_sbi(self.simulator, self.prior, num_simulations=budget)
 
         if density_estimator is None:
             density_estimator = sbi.neural_nets.posterior_nn(
@@ -108,10 +108,10 @@ class NPEC(NPEBase):
                 hidden_features = 100,
                 num_transforms=8,
                 z_score_x = "independent",
-                z_score_theta = "indpendent",
+                z_score_theta = "independent",
             )
 
-        self.inference_method = NPE_C(self.prior.return_sbi_object(), density_estimator=density_estimator)
+        self.inference_method = NPE_C(self.prior, density_estimator=density_estimator)
         _ = self.inference_method.append_simulations(theta, x).train(
             training_batch_size=500,
             max_num_epochs=1000,
@@ -135,9 +135,9 @@ class FMPESingleRound(NPEBase):
 
     def fit(self, budget):
         # prepare dataset
-        theta, x = simulate_for_sbi(self.simulator.sample_pytorch, self.prior, num_simulations=budget)
+        theta, x = simulate_for_sbi(self.simulator, self.prior, num_simulations=budget)
 
-        self.inference_method = FMPE(self.prior.return_sbi_object())
+        self.inference_method = FMPE(self.prior)
         _ = self.inference_method.append_simulations(theta, x).train(
             training_batch_size=500,
             max_num_epochs=1000
